@@ -1,0 +1,49 @@
+[package]
+name = "ush"
+version = "0.1.0"
+edition = "2021"
+authors = ["Johannes Naylor <jonaylor89@gmail.com>"]
+description = "Ultrasonic Shell - communicate between devices using ultrasonic sound waves"
+license = "MIT"
+keywords = ["audio", "ultrasonic", "communication", "terminal"]
+categories = ["command-line-utilities", "multimedia::audio"]
+
+[[bin]]
+name = "ush"
+path = "src/main.rs"
+
+[dependencies]
+# CLI argument parsing
+clap = { version = "4.4", features = ["derive"] }
+
+# Audio I/O
+cpal = "0.15"
+
+# Audio processing and WAV handling
+hound = "3.5"
+rustfft = "6.1"
+
+# Async runtime
+tokio = { version = "1.0", features = ["full"] }
+
+# Error handling
+anyhow = "1.0"
+thiserror = "1.0"
+
+# Serialization and utilities
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+byteorder = "1.5"
+
+# CRC for error detection
+crc = "3.0"
+
+# Logging
+log = "0.4"
+env_logger = "0.10"
+
+# Terminal utilities for chat mode
+crossterm = "0.27"
+
+[dev-dependencies]
+approx = "0.5"
