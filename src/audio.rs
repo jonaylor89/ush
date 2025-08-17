@@ -6,7 +6,7 @@ use cpal::traits::{DeviceTrait, HostTrait};
 use std::sync::{Arc, Mutex};
 use tokio::sync::mpsc;
 use crate::{UshError, UshResult};
-use log::{info, warn, debug};
+use log::{info, warn, debug, error};
 
 const SAMPLE_RATE: u32 = 44100;
 const CHANNELS: u16 = 1;
@@ -74,31 +74,81 @@ impl AudioManager {
     ) -> UshResult<SupportedStreamConfig> {
         let sample_rate = SampleRate(self.config.sample_rate);
         
+        let mut available_configs = Vec::new();
+        
+        // Try to find ANY compatible configuration
         if is_input {
             for config in device.supported_input_configs()? {
-                if config.channels() == self.config.channels
+                available_configs.push((config.channels(), config.min_sample_rate().0, config.max_sample_rate().0, config.sample_format()));
+                
+                // Accept any reasonable configuration we can adapt
+                if (config.channels() >= 1 && config.channels() <= 2) // mono or stereo
                     && config.min_sample_rate() <= sample_rate
                     && sample_rate <= config.max_sample_rate()
                 {
+                    if config.channels() != self.config.channels {
+                        warn!("Using {} channels instead of requested {}", config.channels(), self.config.channels);
+                    }
                     return Ok(config.with_sample_rate(sample_rate));
+                }
+            }
+            
+            // Try alternative sample rates
+            for &alt_rate in &[48000, 22050, 96000] {
+                let alt_sample_rate = SampleRate(alt_rate);
+                for config in device.supported_input_configs()? {
+                    if (config.channels() >= 1 && config.channels() <= 2)
+                        && config.min_sample_rate() <= alt_sample_rate
+                        && alt_sample_rate <= config.max_sample_rate()
+                    {
+                        warn!("Using {}Hz sample rate instead of requested {}Hz", alt_rate, self.config.sample_rate);
+                        warn!("Using {} channels instead of requested {}", config.channels(), self.config.channels);
+                        return Ok(config.with_sample_rate(alt_sample_rate));
+                    }
                 }
             }
         } else {
             for config in device.supported_output_configs()? {
-                if config.channels() == self.config.channels
+                available_configs.push((config.channels(), config.min_sample_rate().0, config.max_sample_rate().0, config.sample_format()));
+                
+                // Accept any reasonable configuration we can adapt
+                if (config.channels() >= 1 && config.channels() <= 2) // mono or stereo
                     && config.min_sample_rate() <= sample_rate
                     && sample_rate <= config.max_sample_rate()
                 {
+                    if config.channels() != self.config.channels {
+                        warn!("Using {} channels instead of requested {}", config.channels(), self.config.channels);
+                    }
                     return Ok(config.with_sample_rate(sample_rate));
+                }
+            }
+            
+            // Try alternative sample rates
+            for &alt_rate in &[48000, 22050, 96000] {
+                let alt_sample_rate = SampleRate(alt_rate);
+                for config in device.supported_output_configs()? {
+                    if (config.channels() >= 1 && config.channels() <= 2)
+                        && config.min_sample_rate() <= alt_sample_rate
+                        && alt_sample_rate <= config.max_sample_rate()
+                    {
+                        warn!("Using {}Hz sample rate instead of requested {}Hz", alt_rate, self.config.sample_rate);
+                        warn!("Using {} channels instead of requested {}", config.channels(), self.config.channels);
+                        return Ok(config.with_sample_rate(alt_sample_rate));
+                    }
                 }
             }
         }
 
-
+        // Log available configurations for debugging
+        error!("Available audio configurations:");
+        for (channels, min_rate, max_rate, format) in &available_configs {
+            error!("  {} channels, {}-{} Hz, {:?}", channels, min_rate, max_rate, format);
+        }
+        
         Err(UshError::Config {
             message: format!(
-                "No suitable audio configuration found for {} channels at {} Hz",
-                self.config.channels, self.config.sample_rate
+                "No suitable audio configuration found for {} channels at {} Hz. Available: {:?}",
+                self.config.channels, self.config.sample_rate, available_configs
             ),
         })
     }
@@ -114,41 +164,87 @@ impl AudioManager {
         debug!("Input config: {:?}", config);
 
         let stream = match config.sample_format() {
-            SampleFormat::I8 => device.build_input_stream(
-                &config.into(),
-                move |data: &[i8], _: &InputCallbackInfo| {
-                    let samples: Vec<f32> = data.iter().map(|&s| s as f32 / i8::MAX as f32).collect();
-                    callback(&samples);
-                },
-                |err| warn!("Input stream error: {}", err),
-                None,
-            )?,
-            SampleFormat::I16 => device.build_input_stream(
-                &config.into(),
-                move |data: &[i16], _: &InputCallbackInfo| {
-                    let samples: Vec<f32> = data.iter().map(|&s| s as f32 / i16::MAX as f32).collect();
-                    callback(&samples);
-                },
-                |err| warn!("Input stream error: {}", err),
-                None,
-            )?,
-            SampleFormat::I32 => device.build_input_stream(
-                &config.into(),
-                move |data: &[i32], _: &InputCallbackInfo| {
-                    let samples: Vec<f32> = data.iter().map(|&s| s as f32 / i32::MAX as f32).collect();
-                    callback(&samples);
-                },
-                |err| warn!("Input stream error: {}", err),
-                None,
-            )?,
-            SampleFormat::F32 => device.build_input_stream(
-                &config.into(),
-                move |data: &[f32], _: &InputCallbackInfo| {
-                    callback(data);
-                },
-                |err| warn!("Input stream error: {}", err),
-                None,
-            )?,
+            SampleFormat::I8 => {
+                let channels = config.channels() as usize;
+                device.build_input_stream(
+                    &config.into(),
+                    move |data: &[i8], _: &InputCallbackInfo| {
+                        let samples: Vec<f32> = data.iter().map(|&s| s as f32 / i8::MAX as f32).collect();
+                        if channels == 1 {
+                            callback(&samples);
+                        } else {
+                            let mono_samples: Vec<f32> = samples
+                                .chunks_exact(channels)
+                                .map(|frame| frame.iter().sum::<f32>() / channels as f32)
+                                .collect();
+                            callback(&mono_samples);
+                        }
+                    },
+                    |err| warn!("Input stream error: {}", err),
+                    None,
+                )?
+            }
+            SampleFormat::I16 => {
+                let channels = config.channels() as usize;
+                device.build_input_stream(
+                    &config.into(),
+                    move |data: &[i16], _: &InputCallbackInfo| {
+                        let samples: Vec<f32> = data.iter().map(|&s| s as f32 / i16::MAX as f32).collect();
+                        if channels == 1 {
+                            callback(&samples);
+                        } else {
+                            let mono_samples: Vec<f32> = samples
+                                .chunks_exact(channels)
+                                .map(|frame| frame.iter().sum::<f32>() / channels as f32)
+                                .collect();
+                            callback(&mono_samples);
+                        }
+                    },
+                    |err| warn!("Input stream error: {}", err),
+                    None,
+                )?
+            }
+            SampleFormat::I32 => {
+                let channels = config.channels() as usize;
+                device.build_input_stream(
+                    &config.into(),
+                    move |data: &[i32], _: &InputCallbackInfo| {
+                        let samples: Vec<f32> = data.iter().map(|&s| s as f32 / i32::MAX as f32).collect();
+                        if channels == 1 {
+                            callback(&samples);
+                        } else {
+                            let mono_samples: Vec<f32> = samples
+                                .chunks_exact(channels)
+                                .map(|frame| frame.iter().sum::<f32>() / channels as f32)
+                                .collect();
+                            callback(&mono_samples);
+                        }
+                    },
+                    |err| warn!("Input stream error: {}", err),
+                    None,
+                )?
+            }
+            SampleFormat::F32 => {
+                let channels = config.channels() as usize;
+                device.build_input_stream(
+                    &config.into(),
+                    move |data: &[f32], _: &InputCallbackInfo| {
+                        if channels == 1 {
+                            // Already mono, pass through directly
+                            callback(data);
+                        } else {
+                            // Convert stereo to mono by averaging channels
+                            let mono_samples: Vec<f32> = data
+                                .chunks_exact(channels)
+                                .map(|frame| frame.iter().sum::<f32>() / channels as f32)
+                                .collect();
+                            callback(&mono_samples);
+                        }
+                    },
+                    |err| warn!("Input stream error: {}", err),
+                    None,
+                )?
+            }
             _ => {
                 return Err(UshError::Config {
                     message: format!("Unsupported sample format: {:?}", config.sample_format()),
@@ -256,6 +352,7 @@ impl AudioManager {
             let sample_value = samples_lock[*index_lock];
             let converted_sample = T::from_sample(sample_value);
             
+            // Fill all channels with the same mono sample (mono -> stereo conversion)
             for sample in frame.iter_mut() {
                 *sample = converted_sample;
             }

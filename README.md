@@ -363,7 +363,6 @@ MIT License - see [LICENSE](LICENSE) file for details.
 ## Credits
 
 Built with:
-- [Rust programming language](https://rust-lang.org/)
 - [cpal](https://github.com/RustAudio/cpal) for cross-platform audio
 - [rustfft](https://github.com/ejmahler/RustFFT) for signal processing
 - [clap](https://github.com/clap-rs/clap) for CLI parsing
@@ -375,4 +374,4 @@ Inspired by projects like:
 
 ---
 
-**Note**: This is experimental software. Use responsibly and be mindful of local regulations regarding ultrasonic emissions.
+**Note**: This is experimental software. Use responsibly and be mindful

@@ -42,7 +42,7 @@ Each transmitted frame follows this structure:
 
 2. **Start Delimiter (2 bytes)**: `0x7E7E`
    - Unique pattern indicating frame start
-   - Based on HDLC flag sequence¹
+   - Based on HDLC flag sequence
    - Repeated for reliability
 
 3. **Length Field (2 bytes)**: Big-endian message length
@@ -72,7 +72,7 @@ pub struct Message {
     pub checksum: u32,
 }
 
-#[derive(Serialize, Deserialize)]  
+#[derive(Serialize, Deserialize)]
 pub struct MessageHeader {
     pub version: u8,           // Protocol version (currently 1)
     pub message_type: MessageType,
@@ -98,7 +98,7 @@ pub enum MessageType {
 
 ### CRC-32 Implementation
 
-The protocol uses CRC-32 with the ISO HDLC polynomial² for error detection:
+The protocol uses CRC-32 with the ISO HDLC polynomial for error detection:
 
 **Polynomial**: `x³² + x²⁶ + x²³ + x²² + x¹⁶ + x¹² + x¹¹ + x¹⁰ + x⁸ + x⁷ + x⁵ + x⁴ + x² + x + 1`
 
@@ -108,14 +108,14 @@ use crc::{Crc, CRC_32_ISO_HDLC};
 
 fn calculate_checksum(header: &MessageHeader, payload: &[u8]) -> UshResult<u32> {
     let crc = Crc::<u32>::new(&CRC_32_ISO_HDLC);
-    
+
     // Serialize header to bytes for checksum calculation
     let header_bytes = serde_json::to_vec(header)?;
-    
+
     let mut digest = crc.digest();
     digest.update(&header_bytes);
     digest.update(payload);
-    
+
     Ok(digest.finalize())
 }
 ```
@@ -125,7 +125,7 @@ fn calculate_checksum(header: &MessageHeader, payload: &[u8]) -> UshResult<u32> 
 CRC-32 provides strong error detection:
 - **Undetected error probability**: ~2³² ≈ 1 in 4.3 billion
 - **Burst error detection**: Up to 32 consecutive bit errors
-- **Random error detection**: Any odd number of bit errors³
+- **Random error detection**: Any odd number of bit errors
 
 ### Checksum Verification Process
 
@@ -152,14 +152,14 @@ CRC-32 provides strong error detection:
 
 ### Decoder State Machine
 
-The protocol decoder implements a finite state machine for robust frame processing⁴:
+The protocol decoder implements a finite state machine for robust frame processing:
 
 ```rust
 #[derive(Debug, PartialEq)]
 enum DecoderState {
     WaitingForPreamble,    // Scanning for preamble pattern
     WaitingForStart,       // Looking for start delimiter
-    ReadingLength,         // Reading 2-byte length field  
+    ReadingLength,         // Reading 2-byte length field
     ReadingMessage,        // Reading variable-length payload
     WaitingForEnd,         // Expecting end delimiter
 }
@@ -202,17 +202,17 @@ The preamble detection algorithm uses pattern matching:
 ```rust
 fn find_preamble(&self) -> Option<usize> {
     let double_preamble = [PREAMBLE, PREAMBLE].concat(); // 0xAAAA...
-    
+
     if self.buffer.len() < double_preamble.len() {
         return None;
     }
-    
+
     for i in 0..=self.buffer.len() - double_preamble.len() {
         if &self.buffer[i..i + double_preamble.len()] == double_preamble {
             return Some(i);
         }
     }
-    
+
     None
 }
 ```
@@ -248,7 +248,7 @@ pub fn new_ack(sequence_number: u32) -> UshResult<Self> {
         timestamp: current_timestamp(),
         payload_length: 0,
     };
-    
+
     Ok(Self {
         header,
         payload: Vec::new(),
@@ -298,7 +298,7 @@ Messages are serialized using serde_json for human readability and debugging:
 - JSON parsing complexity
 - Larger frame sizes
 
-**Alternative Considered**: MessagePack⁶ or Protocol Buffers⁷ for binary efficiency
+**Alternative Considered**: MessagePack or Protocol Buffers for binary efficiency
 
 ## Protocol Extensions
 
@@ -307,7 +307,7 @@ Messages are serialized using serde_json for human readability and debugging:
 Large files are segmented into chunks:
 
 ```rust
-let message = format!("FILE:{}:{}:{}", 
+let message = format!("FILE:{}:{}:{}",
                      filename,
                      sequence_number,
                      base64::encode(chunk));
@@ -344,7 +344,7 @@ if self.buffer.len() > 10000 {
 
 The decoder processes data incrementally:
 - **Stream processing**: No need to buffer complete frames
-- **Early validation**: Reject invalid frames quickly  
+- **Early validation**: Reject invalid frames quickly
 - **Memory efficiency**: Bounded buffer sizes
 
 ## Security Considerations
@@ -384,17 +384,17 @@ The test suite validates protocol behavior:
 async fn test_protocol_corruption_recovery() -> UshResult<()> {
     let mut encoder = ProtocolEncoder::new();
     let mut decoder = ProtocolDecoder::new();
-    
+
     let test_message = "Corruption test message";
     let mut frame_data = encoder.encode_text(test_message)?;
-    
+
     // Corrupt some bytes in the middle
     let mid_idx = frame_data.len() / 2;
     frame_data[mid_idx] = 0xFF;
     frame_data[mid_idx + 1] = 0x00;
-    
+
     let messages = decoder.feed_data(&frame_data);
-    
+
     // Verify corrupted messages are properly rejected
     assert!(messages.is_empty() || !messages[0].verify_checksum().unwrap_or(false));
 }
@@ -404,21 +404,5 @@ async fn test_protocol_corruption_recovery() -> UshResult<()> {
 
 Future versions should include:
 - **Cross-platform testing**: Different OS audio stacks
-- **Hardware variation**: Different speakers/microphones  
+- **Hardware variation**: Different speakers/microphones
 - **Environmental testing**: Various noise conditions
-
-## References
-
-1. Simpson, W. (Ed.). (1994). *RFC 1662 - PPP in HDLC-like Framing*. Internet Engineering Task Force. (HDLC framing protocol)
-
-2. International Organization for Standardization. (1993). *ISO/IEC 3309:1993 - Information technology -- Telecommunications and information exchange between systems -- High-level data link control (HDLC) procedures*. (CRC polynomial specification)
-
-3. Peterson, W. W., & Brown, D. T. (1961). "Cyclic codes for error detection." *Proceedings of the IRE*, 49(1), 228-235. (CRC error detection theory)
-
-4. Hopcroft, J. E., Motwani, R., & Ullman, J. D. (2001). *Introduction to Automata Theory, Languages, and Computation* (2nd ed.). Addison-Wesley. (Finite state machines)
-
-5. Stallings, W. (2013). *Data and Computer Communications* (10th ed.). Pearson. (ARQ protocols)
-
-6. Furuhashi, S. (2023). *MessagePack specification*. https://msgpack.org/index.html (Binary serialization format)
-
-7. Google. (2023). *Protocol Buffers*. https://developers.google.com/protocol-buffers (Structured data serialization)

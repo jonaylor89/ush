@@ -1,8 +1,8 @@
-use crc::{Crc, CRC_32_ISO_HDLC};
+use crate::{UshError, UshResult};
+use crc::{CRC_32_ISO_HDLC, Crc};
+use log::{debug, warn};
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
-use crate::{UshError, UshResult};
-use log::{debug, warn};
 
 const PROTOCOL_VERSION: u8 = 1;
 const PREAMBLE: &[u8] = &[0xAA, 0xAA, 0xAA, 0xAA]; // Alternating pattern for sync
@@ -37,7 +37,7 @@ pub struct Message {
 impl Message {
     pub fn new_text(text: &str, sequence_number: u32) -> UshResult<Self> {
         let payload = text.as_bytes().to_vec();
-        
+
         if payload.len() > MAX_MESSAGE_LENGTH {
             return Err(UshError::Protocol {
                 message: format!(
@@ -47,7 +47,7 @@ impl Message {
                 ),
             });
         }
-        
+
         let header = MessageHeader {
             version: PROTOCOL_VERSION,
             message_type: MessageType::Text,
@@ -58,19 +58,19 @@ impl Message {
                 .as_secs(),
             payload_length: payload.len() as u16,
         };
-        
+
         let checksum = Self::calculate_checksum(&header, &payload)?;
-        
+
         Ok(Self {
             header,
             payload,
             checksum,
         })
     }
-    
+
     pub fn new_ack(sequence_number: u32) -> UshResult<Self> {
         let payload = Vec::new();
-        
+
         let header = MessageHeader {
             version: PROTOCOL_VERSION,
             message_type: MessageType::Ack,
@@ -81,19 +81,19 @@ impl Message {
                 .as_secs(),
             payload_length: 0,
         };
-        
+
         let checksum = Self::calculate_checksum(&header, &payload)?;
-        
+
         Ok(Self {
             header,
             payload,
             checksum,
         })
     }
-    
+
     pub fn new_ping(sequence_number: u32) -> UshResult<Self> {
         let payload = b"ping".to_vec();
-        
+
         let header = MessageHeader {
             version: PROTOCOL_VERSION,
             message_type: MessageType::Ping,
@@ -104,36 +104,36 @@ impl Message {
                 .as_secs(),
             payload_length: payload.len() as u16,
         };
-        
+
         let checksum = Self::calculate_checksum(&header, &payload)?;
-        
+
         Ok(Self {
             header,
             payload,
             checksum,
         })
     }
-    
+
     fn calculate_checksum(header: &MessageHeader, payload: &[u8]) -> UshResult<u32> {
         let crc = Crc::<u32>::new(&CRC_32_ISO_HDLC);
-        
+
         // Serialize header to bytes for checksum calculation
         let header_bytes = serde_json::to_vec(header).map_err(|e| UshError::Protocol {
             message: format!("Failed to serialize header: {}", e),
         })?;
-        
+
         let mut digest = crc.digest();
         digest.update(&header_bytes);
         digest.update(payload);
-        
+
         Ok(digest.finalize())
     }
-    
+
     pub fn verify_checksum(&self) -> UshResult<bool> {
         let calculated = Self::calculate_checksum(&self.header, &self.payload)?;
         Ok(calculated == self.checksum)
     }
-    
+
     pub fn get_text(&self) -> UshResult<String> {
         match self.header.message_type {
             MessageType::Text => {
@@ -159,42 +159,42 @@ impl ProtocolEncoder {
             sequence_counter: 0,
         }
     }
-    
+
     pub fn encode_message(&mut self, message: &Message) -> UshResult<Vec<u8>> {
         let mut frame = Vec::new();
-        
+
         // Add preamble for synchronization
         frame.extend_from_slice(PREAMBLE);
         frame.extend_from_slice(PREAMBLE); // Double preamble for better sync
-        
+
         // Add start delimiter
         frame.extend_from_slice(START_DELIMITER);
-        
+
         // Serialize the message
         let message_bytes = serde_json::to_vec(message).map_err(|e| UshError::Encoding {
             message: format!("Failed to serialize message: {}", e),
         })?;
-        
+
         // Add message length (for framing)
         let length = message_bytes.len() as u16;
         frame.extend_from_slice(&length.to_be_bytes());
-        
+
         // Add message data
         frame.extend_from_slice(&message_bytes);
-        
+
         // Add end delimiter
         frame.extend_from_slice(END_DELIMITER);
-        
+
         debug!("Encoded message into {} bytes", frame.len());
         Ok(frame)
     }
-    
+
     pub fn encode_text(&mut self, text: &str) -> UshResult<Vec<u8>> {
         let message = Message::new_text(text, self.sequence_counter)?;
         self.sequence_counter = self.sequence_counter.wrapping_add(1);
         self.encode_message(&message)
     }
-    
+
     pub fn get_next_sequence_number(&self) -> u32 {
         self.sequence_counter
     }
@@ -230,11 +230,11 @@ impl ProtocolDecoder {
             expected_length: 0,
         }
     }
-    
+
     pub fn feed_data(&mut self, data: &[u8]) -> Vec<Message> {
         self.buffer.extend_from_slice(data);
         let mut messages = Vec::new();
-        
+
         while let Some(message) = self.try_decode_message() {
             match message {
                 Ok(msg) => {
@@ -252,17 +252,17 @@ impl ProtocolDecoder {
                 }
             }
         }
-        
+
         // Keep buffer size reasonable
         if self.buffer.len() > 10000 {
             let keep_size = 5000;
             self.buffer.drain(..self.buffer.len() - keep_size);
             self.state = DecoderState::WaitingForPreamble;
         }
-        
+
         messages
     }
-    
+
     fn try_decode_message(&mut self) -> Option<UshResult<Message>> {
         match self.state {
             DecoderState::WaitingForPreamble => {
@@ -276,7 +276,8 @@ impl ProtocolDecoder {
             DecoderState::WaitingForStart => {
                 if self.buffer.len() >= PREAMBLE.len() * 2 + START_DELIMITER.len() {
                     let start_pos = PREAMBLE.len() * 2;
-                    if &self.buffer[start_pos..start_pos + START_DELIMITER.len()] == START_DELIMITER {
+                    if &self.buffer[start_pos..start_pos + START_DELIMITER.len()] == START_DELIMITER
+                    {
                         self.buffer.drain(..start_pos + START_DELIMITER.len());
                         self.state = DecoderState::ReadingLength;
                         return self.try_decode_message();
@@ -293,14 +294,14 @@ impl ProtocolDecoder {
                 if self.buffer.len() >= 2 {
                     let length_bytes = [self.buffer[0], self.buffer[1]];
                     self.expected_length = u16::from_be_bytes(length_bytes) as usize;
-                    
+
                     if self.expected_length > MAX_MESSAGE_LENGTH * 2 {
                         // Invalid length, reset
                         self.buffer.drain(..1);
                         self.state = DecoderState::WaitingForPreamble;
                         return self.try_decode_message();
                     }
-                    
+
                     self.buffer.drain(..2);
                     self.state = DecoderState::ReadingMessage;
                     return self.try_decode_message();
@@ -312,7 +313,7 @@ impl ProtocolDecoder {
                     let message_bytes = self.buffer[..self.expected_length].to_vec();
                     self.buffer.drain(..self.expected_length);
                     self.state = DecoderState::WaitingForEnd;
-                    
+
                     match serde_json::from_slice::<Message>(&message_bytes) {
                         Ok(message) => {
                             // Check if we have the end delimiter
@@ -354,17 +355,18 @@ impl ProtocolDecoder {
             }
         }
     }
-    
+
     fn find_preamble(&self) -> Option<usize> {
         let double_preamble = [PREAMBLE, PREAMBLE].concat();
-        
+
         if self.buffer.len() < double_preamble.len() {
             return None;
         }
-        
-        (0..=self.buffer.len() - double_preamble.len()).find(|&i| &self.buffer[i..i + double_preamble.len()] == double_preamble)
+
+        (0..=self.buffer.len() - double_preamble.len())
+            .find(|&i| self.buffer[i..i + double_preamble.len()] == double_preamble)
     }
-    
+
     pub fn reset(&mut self) {
         self.buffer.clear();
         self.state = DecoderState::WaitingForPreamble;
@@ -389,46 +391,46 @@ mod tests {
         assert_eq!(msg.get_text().unwrap(), "Hello, World!");
         assert_eq!(msg.header.sequence_number, 42);
     }
-    
+
     #[test]
     fn test_encode_decode_roundtrip() {
         let mut encoder = ProtocolEncoder::new();
         let mut decoder = ProtocolDecoder::new();
-        
+
         let original_text = "Test message";
         let encoded = encoder.encode_text(original_text).unwrap();
         let messages = decoder.feed_data(&encoded);
-        
+
         assert_eq!(messages.len(), 1);
         assert_eq!(messages[0].get_text().unwrap(), original_text);
     }
-    
+
     #[test]
     fn test_checksum_verification() {
         let mut msg = Message::new_text("Test", 1).unwrap();
         assert!(msg.verify_checksum().unwrap());
-        
+
         // Corrupt the message
         msg.payload[0] = msg.payload[0].wrapping_add(1);
         assert!(!msg.verify_checksum().unwrap());
     }
-    
+
     #[test]
     fn test_decoder_with_partial_data() {
         let mut encoder = ProtocolEncoder::new();
         let mut decoder = ProtocolDecoder::new();
-        
+
         let encoded = encoder.encode_text("Test").unwrap();
-        
+
         // Feed data in chunks
         let chunk_size = 5;
         let mut total_messages = Vec::new();
-        
+
         for chunk in encoded.chunks(chunk_size) {
             let mut messages = decoder.feed_data(chunk);
             total_messages.append(&mut messages);
         }
-        
+
         assert_eq!(total_messages.len(), 1);
         assert_eq!(total_messages[0].get_text().unwrap(), "Test");
     }

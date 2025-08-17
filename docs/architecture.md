@@ -66,7 +66,7 @@ Preamble (8 bytes) | Start (2 bytes) | Length (2 bytes) | Message | End (2 bytes
 **State Machine**: The decoder implements a finite state machine for robust frame detection:
 - `WaitingForPreamble` → `WaitingForStart` → `ReadingLength` → `ReadingMessage` → `WaitingForEnd`
 
-**Error Handling**: Based on telecommunications error correction principles¹:
+**Error Handling**: Based on telecommunications error correction principles:
 - Automatic repeat request (ARQ) for corrupted frames
 - Sliding window for partial message recovery
 - Adaptive timeout mechanisms
@@ -87,7 +87,7 @@ Preamble (8 bytes) | Start (2 bytes) | Length (2 bytes) | Message | End (2 bytes
 3. Apply amplitude ramping to reduce spectral splatter
 4. Concatenate symbols with smooth transitions
 
-**Demodulation Process** (based on FFT analysis²):
+**Demodulation Process** (based on FFT analysis):
 1. Segment received audio into symbol-length windows
 2. Apply FFT to each window
 3. Analyze frequency domain for peak detection
@@ -108,7 +108,7 @@ pub struct ModulationConfig {
 
 **Purpose**: Cross-platform audio I/O abstraction
 
-**Implementation**: Built on the `cpal` library³, which provides:
+**Implementation**: Built on the `cpal` library, which provides:
 - **Cross-platform support**: Windows (WASAPI), macOS (CoreAudio), Linux (ALSA)
 - **Low-latency streaming**: Real-time audio processing
 - **Multiple sample formats**: Support for various bit depths and sample rates
@@ -142,7 +142,7 @@ fn create_output_stream(&self, samples: Arc<Mutex<Vec<f32>>>) -> UshResult<Strea
 pub enum UshError {
     #[error("Audio error: {0}")]
     Audio(#[from] cpal::StreamError),
-    
+
     #[error("CRC mismatch: expected {expected}, got {actual}")]
     CrcMismatch { expected: u32, actual: u32 },
     // ... other error types
@@ -211,13 +211,3 @@ Non-blocking I/O throughout the system:
 - **End-to-End**: Complete encode/decode pipeline testing
 - **Error Injection**: Simulated network conditions and hardware failures
 - **Performance Testing**: Latency and throughput measurements
-
-## References
-
-1. Tanenbaum, A. S., & Wetherall, D. J. (2011). *Computer Networks* (5th ed.). Pearson. (Error correction protocols)
-
-2. Oppenheim, A. V., & Schafer, R. W. (2010). *Discrete-Time Signal Processing* (3rd ed.). Pearson. (FFT-based signal analysis)
-
-3. RustAudio. (2023). *cpal - Cross-Platform Audio Library*. https://github.com/RustAudio/cpal
-
-4. Hunt, A., & Thomas, D. (2019). *The Pragmatic Programmer* (20th Anniversary ed.). Addison-Wesley. (Software architecture principles)

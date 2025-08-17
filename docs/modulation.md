@@ -8,10 +8,10 @@ The `ush` system implements Binary Frequency Shift Keying (BFSK) for converting 
 
 ### Frequency Shift Keying Fundamentals
 
-FSK is a digital modulation technique where digital information is transmitted by shifting the frequency of a carrier signal¹. In binary FSK (BFSK):
+FSK is a digital modulation technique where digital information is transmitted by shifting the frequency of a carrier signal. In binary FSK (BFSK):
 
 - **Mark frequency (f₁)**: Represents binary '1' - 20,000 Hz
-- **Space frequency (f₀)**: Represents binary '0' - 18,000 Hz  
+- **Space frequency (f₀)**: Represents binary '0' - 18,000 Hz
 - **Frequency separation (Δf)**: f₁ - f₀ = 2,000 Hz
 
 ### Mathematical Representation
@@ -43,13 +43,13 @@ Each bit is transmitted for duration T_s = 10ms, providing:
 impl FskModulator {
     pub fn encode_bits(&self, bits: &[bool]) -> Vec<f32> {
         let mut samples = Vec::new();
-        
+
         for (i, &bit) in bits.iter().enumerate() {
             let frequency = if bit { self.config.freq_1 } else { self.config.freq_0 };
             let symbol_samples = self.generate_symbol(frequency, i == 0, i == bits.len() - 1);
             samples.extend(symbol_samples);
         }
-        
+
         samples
     }
 }
@@ -64,7 +64,7 @@ impl FskModulator {
 
 #### Ramping Function
 
-To minimize inter-symbol interference and spectral leakage², the system applies amplitude ramping:
+To minimize inter-symbol interference and spectral leakage, the system applies amplitude ramping:
 
 ```rust
 fn generate_symbol(&self, frequency: f32, is_first: bool, is_last: bool) -> Vec<f32> {
@@ -72,18 +72,18 @@ fn generate_symbol(&self, frequency: f32, is_first: bool, is_last: bool) -> Vec<
         let t = i as f32 / self.config.sample_rate as f32;
         let phase = 2.0 * PI * frequency * t;
         let mut amplitude = phase.sin();
-        
+
         // Apply ramping (first 2ms and last 2ms)
         if is_first && i < self.ramp_samples {
             let ramp_factor = i as f32 / self.ramp_samples as f32;
             amplitude *= ramp_factor;
         }
-        
+
         if is_last && i >= self.samples_per_symbol - self.ramp_samples {
             let ramp_factor = (self.samples_per_symbol - i) as f32 / self.ramp_samples as f32;
             amplitude *= ramp_factor;
         }
-        
+
         samples.push(amplitude * 0.3); // 30% volume
     }
 }
@@ -100,20 +100,20 @@ pub fn decode_symbol(&self, samples: &[f32]) -> UshResult<bool> {
         .iter()
         .map(|&s| Complex::new(s, 0.0))
         .collect();
-    
+
     padded_samples.resize(self.fft_size, Complex::new(0.0, 0.0));
-    
+
     // 2. Apply FFT
     self.fft.process(&mut padded_samples);
-    
+
     // 3. Calculate frequency bin indices
     let freq_0_bin = (self.config.freq_0 * self.fft_size as f32 / self.config.sample_rate as f32) as usize;
     let freq_1_bin = (self.config.freq_1 * self.fft_size as f32 / self.config.sample_rate as f32) as usize;
-    
+
     // 4. Measure power spectral density
     let power_0 = self.measure_bin_power(&padded_samples, freq_0_bin);
     let power_1 = self.measure_bin_power(&padded_samples, freq_1_bin);
-    
+
     // 5. Decision based on maximum likelihood
     Ok(power_1 > power_0)
 }
@@ -138,7 +138,7 @@ Power in each frequency bin is calculated as:
 ```rust
 fn measure_bin_power(&self, fft_result: &[Complex<f32>], center_bin: usize) -> f32 {
     let search_range = 3; // ±3 bins for robustness
-    
+
     (center_bin.saturating_sub(search_range)
         ..=(center_bin + search_range).min(fft_result.len() - 1))
         .map(|i| fft_result[i].norm_sqr())
@@ -155,7 +155,7 @@ This approach provides robustness against:
 
 ### Windowing Functions
 
-While not explicitly implemented in the current version, windowing functions could improve spectral analysis⁴:
+While not explicitly implemented in the current version, windowing functions could improve spectral analysis:
 
 - **Hamming Window**: Reduces spectral leakage
 - **Blackman Window**: Better frequency resolution
@@ -169,23 +169,23 @@ The system includes optional bandpass filtering:
 pub fn apply_bandpass_filter(samples: &[f32], low_freq: f32, high_freq: f32, sample_rate: u32) -> Vec<f32> {
     // High-pass filter (remove DC and low frequencies)
     let alpha_hp = 1.0 / (1.0 + 2.0 * PI * low_freq / sample_rate as f32);
-    
-    // Low-pass filter (remove high frequencies)  
+
+    // Low-pass filter (remove high frequencies)
     let alpha_lp = 2.0 * PI * high_freq / sample_rate as f32 / (1.0 + 2.0 * PI * high_freq / sample_rate as f32);
-    
+
     // Apply cascaded IIR filters
 }
 ```
 
 ### Automatic Gain Control (AGC)
 
-For varying signal levels, the system could implement AGC⁵:
+For varying signal levels, the system could implement AGC:
 
 ```rust
 fn apply_agc(samples: &mut [f32], target_level: f32) {
     let rms = (samples.iter().map(|&s| s * s).sum::<f32>() / samples.len() as f32).sqrt();
     let gain = target_level / rms.max(1e-6);
-    
+
     for sample in samples.iter_mut() {
         *sample *= gain;
     }
@@ -196,7 +196,7 @@ fn apply_agc(samples: &mut [f32], target_level: f32) {
 
 ### Bit Error Rate (BER)
 
-The theoretical BER for coherent BFSK in AWGN is⁶:
+The theoretical BER for coherent BFSK in AWGN is
 
 ```
 BER = Q(√(Eb/N0))
@@ -211,7 +211,7 @@ Where:
 
 The chosen frequencies (18-20 kHz) offer several advantages:
 
-1. **Above Human Hearing**: Minimizes audible interference (human hearing: 20 Hz - 20 kHz⁷)
+1. **Above Human Hearing**: Minimizes audible interference (human hearing: 20 Hz - 20 kHz)
 2. **Speaker Response**: Most computer speakers/headphones support this range
 3. **Microphone Sensitivity**: Standard microphones have adequate response
 4. **Interference Avoidance**: Avoids WiFi (2.4/5 GHz) and cellular frequencies
@@ -263,19 +263,3 @@ fn symbol_synchronization(&self, samples: &[f32]) -> usize {
 1. **Dynamic frequency selection**: Based on noise measurements
 2. **Variable symbol duration**: Adapt to channel conditions
 3. **Forward Error Correction**: Reed-Solomon or convolutional codes
-
-## References
-
-1. Sklar, B. (2001). *Digital Communications: Fundamentals and Applications* (2nd ed.). Prentice Hall. (FSK theory)
-
-2. Harris, F. J. (1978). "On the use of windows for harmonic analysis with the discrete Fourier transform." *Proceedings of the IEEE*, 66(1), 51-83. (Windowing and spectral leakage)
-
-3. Cooley, J. W., & Tukey, J. W. (1965). "An algorithm for the machine calculation of complex Fourier series." *Mathematics of Computation*, 19(90), 297-301. (FFT algorithm)
-
-4. Oppenheim, A. V., Schafer, R. W., & Buck, J. R. (1999). *Discrete-time signal processing* (2nd ed.). Prentice Hall. (Digital signal processing)
-
-5. Petraglia, M. R., & Mitra, S. K. (1993). "Adaptive FIR filter structures based on the generalized subband decomposition of FIR filters." *IEEE Transactions on Circuits and Systems II*, 40(6), 354-362. (Adaptive filtering)
-
-6. Proakis, J. G., & Salehi, M. (2008). *Digital Communications* (5th ed.). McGraw-Hill. (Error probability analysis)
-
-7. Moore, B. C. J. (2012). *An Introduction to the Psychology of Hearing* (6th ed.). Emerald Group Publishing. (Human auditory system)

@@ -1,16 +1,22 @@
 [package]
 name = "ush"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 authors = ["Johannes Naylor <jonaylor89@gmail.com>"]
 description = "Ultrasonic Shell - communicate between devices using ultrasonic sound waves"
 license = "MIT"
 keywords = ["audio", "ultrasonic", "communication", "terminal"]
 categories = ["command-line-utilities", "multimedia::audio"]
+default-run = "ush"
 
 [[bin]]
 name = "ush"
 path = "src/main.rs"
+
+[[bin]]
+name = "audio_debug"
+path = "src/bin/audio_debug.rs"
+
 
 [dependencies]
 # CLI argument parsing
@@ -44,6 +50,16 @@ env_logger = "0.10"
 
 # Terminal utilities for chat mode
 crossterm = "0.27"
+
+# MP3 processing and audio codecs
+symphonia = { version = "0.5", features = ["mp3", "wav", "flac"] }
+mp3lame-encoder = "0.1"
+
+# Random number generation for steganography
+rand = "0.8"
+
+# Audio analysis for spectral masking
+spectrum-analyzer = "1.0"
 
 [dev-dependencies]
 approx = "0.5"

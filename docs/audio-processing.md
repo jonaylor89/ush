@@ -107,7 +107,7 @@ impl AudioManager {
                 message: "No input device available".to_string(),
             })
     }
-    
+
     fn get_output_device(&self) -> UshResult<Device> {
         self.host
             .default_output_device()
@@ -125,7 +125,7 @@ The system automatically negotiates audio formats with available hardware:
 ```rust
 fn get_supported_config(&self, device: &Device, is_input: bool) -> UshResult<SupportedStreamConfig> {
     let sample_rate = SampleRate(self.config.sample_rate);
-    
+
     if is_input {
         for config in device.supported_input_configs()? {
             if config.channels() == self.config.channels
@@ -162,7 +162,7 @@ fn fill_output_buffer<T>(
 {
     let sample_value = samples_lock[*index_lock];
     let converted_sample = T::from_sample(sample_value);
-    
+
     for sample in frame.iter_mut() {
         *sample = converted_sample;
     }
@@ -171,7 +171,7 @@ fn fill_output_buffer<T>(
 
 **Supported Formats**:
 - **I8**: 8-bit signed integer (-128 to 127)
-- **I16**: 16-bit signed integer (-32,768 to 32,767)  
+- **I16**: 16-bit signed integer (-32,768 to 32,767)
 - **I32**: 32-bit signed integer
 - **F32**: 32-bit floating point (-1.0 to 1.0)
 
@@ -182,7 +182,7 @@ fn f32_to_i16(sample: f32) -> i16 {
     (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16
 }
 
-// Integer to Float conversion  
+// Integer to Float conversion
 fn i16_to_f32(sample: i16) -> f32 {
     sample as f32 / i16::MAX as f32
 }
@@ -199,7 +199,7 @@ pub fn create_input_stream(
 ) -> UshResult<Stream> {
     let device = self.get_input_device()?;
     let config = self.get_supported_config(&device, true)?;
-    
+
     let stream = match config.sample_format() {
         SampleFormat::F32 => device.build_input_stream(
             &config.into(),
@@ -211,7 +211,7 @@ pub fn create_input_stream(
         )?,
         // Handle other formats...
     };
-    
+
     Ok(stream)
 }
 ```
@@ -232,10 +232,10 @@ pub fn create_output_stream(
 ) -> UshResult<Stream> {
     let device = self.get_output_device()?;
     let config = self.get_supported_config(&device, false)?;
-    
+
     let sample_index = Arc::new(Mutex::new(0usize));
     let channels = config.channels() as usize;
-    
+
     let stream = device.build_output_stream(
         &config.into(),
         move |data: &mut [T], _: &OutputCallbackInfo| {
@@ -244,7 +244,7 @@ pub fn create_output_stream(
         |err| warn!("Output stream error: {}", err),
         None,
     )?;
-    
+
     Ok(stream)
 }
 ```
@@ -332,10 +332,10 @@ let (finished_tx, finished_rx) = mpsc::unbounded_channel();
 pub enum UshError {
     #[error("Audio device error: {0}")]
     AudioDevice(#[from] cpal::DevicesError),
-    
+
     #[error("Audio format error: {0}")]
     AudioFormat(#[from] cpal::SupportedStreamConfigsError),
-    
+
     #[error("Audio stream error: {0}")]
     Audio(#[from] cpal::StreamError),
 }
@@ -394,7 +394,7 @@ Total Latency = Input_Buffer + Processing + Output_Buffer + Hardware_Latency
 
 Where:
 - Input_Buffer: ~93ms (4096 samples at 44.1kHz)
-- Processing: <10ms (signal processing time)  
+- Processing: <10ms (signal processing time)
 - Output_Buffer: ~93ms (4096 samples at 44.1kHz)
 - Hardware_Latency: ~5-20ms (device dependent)
 
@@ -416,18 +416,18 @@ Total: ~200-220ms typical
 #[tokio::test]
 async fn test_audio_loopback() -> UshResult<()> {
     let manager = AudioManager::new()?;
-    
+
     // Generate test signal
     let test_freq = 1000.0; // 1 kHz sine wave
     let test_samples = generate_sine_wave(test_freq, SAMPLE_RATE, 1.0);
-    
+
     // Record output through input (requires physical loopback)
     let recorded = record_playback(&manager, &test_samples).await?;
-    
+
     // Verify signal integrity
     let correlation = cross_correlate(&test_samples, &recorded);
     assert!(correlation > 0.9, "Poor audio fidelity: {}", correlation);
-    
+
     Ok(())
 }
 ```
@@ -436,7 +436,7 @@ async fn test_audio_loopback() -> UshResult<()> {
 
 **Platform-Specific Tests**:
 - **macOS**: Core Audio compatibility testing
-- **Windows**: WASAPI exclusive mode testing  
+- **Windows**: WASAPI exclusive mode testing
 - **Linux**: ALSA/PulseAudio compatibility
 - **Hardware Variation**: Different audio interfaces
 
@@ -461,15 +461,3 @@ fn adjust_buffer_size(current_latency: Duration, target_latency: Duration) -> us
 - GPU-based FFT processing
 - Dedicated DSP hardware utilization
 - ASIO driver support (Windows)
-
-## References
-
-1. RustAudio Community. (2023). *cpal - Cross-Platform Audio Library*. https://github.com/RustAudio/cpal (Cross-platform audio abstraction)
-
-2. Nyquist, H. (1928). "Certain topics in telegraph transmission theory." *Transactions of the American Institute of Electrical Engineers*, 47(2), 617-644. (Sampling theorem)
-
-3. Smith, S. W. (2011). *Digital Signal Processing: A Practical Guide for Engineers and Scientists*. Newnes. (Sample format conversion)
-
-4. Dannenberg, R. B. (1997). "Real-time scheduling and computer music." *Computer Music Journal*, 21(3), 25-40. (Real-time audio constraints)
-
-5. Brandt, E., & Dannenberg, R. B. (1999). "Low-latency audio synthesis in Java." *Proceedings of the International Computer Music Conference*, 101-104. (Audio latency analysis)

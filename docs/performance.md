@@ -18,7 +18,7 @@ This document analyzes the performance characteristics of the `ush` ultrasonic c
 // From performance benchmark test
 Performance benchmarks:
   Protocol encode: 45μs
-  Modulation encode: 2.1ms  
+  Modulation encode: 2.1ms
   Modulation decode: 8.7ms
   Protocol decode: 12μs
   Total roundtrip: 10.857ms
@@ -50,7 +50,7 @@ Total = Encode + Transmit + Decode + Protocol
 Input Buffer:  4096 samples × 4 bytes = 16 KB
 Output Buffer: 4096 samples × 4 bytes = 16 KB
 
-// FFT Processing  
+// FFT Processing
 FFT Buffer: 512 complex × 8 bytes = 4 KB
 Window Buffer: 441 samples × 4 bytes = 1.8 KB
 
@@ -120,7 +120,7 @@ fn fast_sine(phase: f32) -> f32 {
 **Test Configuration**:
 - Message: "Performance test message for benchmarking encoding and decoding speed." (67 characters)
 - Platform: macOS with CoreAudio
-- Hardware: Apple M1 processor
+- Hardware: Apple M2 processor
 
 **Results**:
 ```
@@ -148,7 +148,7 @@ Total End-to-End      18.58s       100.00%
 Length (chars) | Audio Duration | Total Time | Effective Rate
 ─────────────────────────────────────────────────────────
 10             | 4.2s          | 4.21s      | 2.4 chars/s
-25             | 8.5s          | 8.51s      | 2.9 chars/s  
+25             | 8.5s          | 8.51s      | 2.9 chars/s
 50             | 15.8s         | 15.81s     | 3.2 chars/s
 100            | 30.1s         | 30.11s     | 3.3 chars/s
 200            | 58.7s         | 58.71s     | 3.4 chars/s
@@ -170,7 +170,7 @@ Length (chars) | Audio Duration | Total Time | Effective Rate
 pub fn adaptive_symbol_duration(snr_db: f32) -> f32 {
     match snr_db {
         snr if snr > 20.0 => 0.005,  // 5ms for high SNR
-        snr if snr > 10.0 => 0.008,  // 8ms for medium SNR  
+        snr if snr > 10.0 => 0.008,  // 8ms for medium SNR
         _ => 0.012,                  // 12ms for low SNR
     }
 }
@@ -186,7 +186,7 @@ pub fn adaptive_symbol_duration(snr_db: f32) -> f32 {
 ```rust
 pub enum MfskSymbol {
     Symbol00 = 18000,  // 00 → 18kHz
-    Symbol01 = 19000,  // 01 → 19kHz  
+    Symbol01 = 19000,  // 01 → 19kHz
     Symbol10 = 20000,  // 10 → 20kHz
     Symbol11 = 21000,  // 11 → 21kHz
 }
@@ -195,7 +195,7 @@ pub enum MfskSymbol {
 **Trade-offs**:
 - **Advantage**: 2x data rate (200 bits/second theoretical)
 - **Disadvantage**: Reduced noise immunity, more complex demodulation
-- **SNR Requirement**: +3dB compared to BFSK²
+- **SNR Requirement**: +3dB compared to BFSK
 
 ### 3. Advanced Modulation Schemes
 
@@ -207,11 +207,11 @@ pub enum MfskSymbol {
 **Gaussian FSK (GFSK)**:
 - Pre-modulation Gaussian filtering
 - Reduced out-of-band emissions
-- Used in Bluetooth standard³
+- Used in Bluetooth standard
 
 ### 4. Forward Error Correction (FEC)
 
-**Reed-Solomon Coding**⁴:
+**Reed-Solomon Coding**:
 ```rust
 // Example RS(255,223) code - 32 bytes redundancy
 pub struct ReedSolomon {
@@ -241,16 +241,16 @@ fn parallel_fft_decode(symbols: &[Vec<f32>]) -> Vec<bool> {
 
 **GPU Acceleration**:
 - cuFFT for NVIDIA GPUs
-- rocFFT for AMD GPUs  
+- rocFFT for AMD GPUs
 - Potential 10-100x speedup for large FFTs
 
 ### 6. Protocol Optimizations
 
 **Binary Serialization**:
-Replace JSON with MessagePack⁵:
+Replace JSON with MessagePack:
 ```rust
 // JSON: {"type":"Text","data":"Hello"} → 29 bytes
-// MessagePack: Binary equivalent → 18 bytes  
+// MessagePack: Binary equivalent → 18 bytes
 // Saving: 38% overhead reduction
 ```
 
@@ -301,34 +301,6 @@ fn speaker_compensation_filter(samples: &mut [f32]) {
 - **Android**: OpenSL ES for real-time processing
 - **Raspberry Pi**: ALSA direct hardware access
 
-## Power Consumption Analysis
-
-### CPU Usage Profiling
-
-**Breakdown by Component**:
-```
-Component           CPU %    Power Est.
-─────────────────────────────────────
-FFT Processing      2.1%     ~50mW
-Audio I/O           0.8%     ~20mW
-Protocol Stack      0.1%     ~2mW  
-Background Tasks    0.2%     ~5mW
-─────────────────────────────────────
-Total Active        3.2%     ~77mW
-```
-
-**Power Optimization Strategies**:
-- **Duty Cycling**: Sleep between transmissions
-- **Frequency Scaling**: Reduce CPU clock during idle
-- **Audio Pipeline**: Disable unused processing stages
-
-### Battery Life Impact
-
-**Mobile Device Estimate** (3000mAh battery):
-- **Continuous Operation**: ~39 hours (77mW draw)
-- **Typical Usage** (5 min/hour): ~150 hours
-- **Comparison**: Similar to Bluetooth Low Energy
-
 ## Scalability Considerations
 
 ### Multi-User Scenarios
@@ -344,7 +316,7 @@ impl ChannelPlan {
         Self {
             channels: vec![
                 (17000.0, 18000.0),  // Channel 1
-                (19000.0, 20000.0),  // Channel 2  
+                (19000.0, 20000.0),  // Channel 2
                 (21000.0, 22000.0),  // Channel 3
             ]
         }
@@ -368,62 +340,3 @@ impl ChannelPlan {
 - Fault tolerant
 - Complex routing protocols
 - Higher overhead per message
-
-## Future Performance Enhancements
-
-### Software Defined Radio (SDR) Integration
-
-**GNU Radio Integration**⁶:
-```rust
-// Hypothetical SDR-based implementation
-pub struct SdrTransceiver {
-    sample_rate: u32,
-    center_frequency: f32,
-    bandwidth: f32,
-}
-
-impl SdrTransceiver {
-    pub fn new() -> Self {
-        Self {
-            sample_rate: 2_000_000,    // 2 MSPS
-            center_frequency: 20_000.0, // 20 kHz center
-            bandwidth: 10_000.0,        // 10 kHz bandwidth
-        }
-    }
-}
-```
-
-**Advantages**:
-- Higher sample rates (>1 MSPS)
-- Better frequency control
-- Advanced modulation schemes
-- Multiple simultaneous channels
-
-### Machine Learning Optimizations
-
-**Neural Network Demodulation**⁷:
-- Replace FFT-based detection
-- Learned features for noise immunity
-- Adaptive to channel conditions
-- Potential 2-5dB SNR improvement
-
-**Reinforcement Learning Protocol**:
-- Adaptive retry strategies
-- Dynamic parameter adjustment
-- Multi-objective optimization (speed vs. reliability)
-
-## References
-
-1. Bellman, E., & Mahjoub, A. (2023). *RustFFT Performance Analysis*. Rust Audio Community. https://github.com/ejmahler/RustFFT (FFT optimization techniques)
-
-2. Proakis, J. G., & Salehi, M. (2008). *Digital Communications* (5th ed.). McGraw-Hill. (Multi-level FSK performance analysis)
-
-3. Bluetooth SIG. (2019). *Bluetooth Core Specification v5.1*. https://www.bluetooth.com/specifications/ (GFSK modulation in Bluetooth)
-
-4. Reed, I. S., & Solomon, G. (1960). "Polynomial codes over certain finite fields." *Journal of the Society for Industrial and Applied Mathematics*, 8(2), 300-304. (Reed-Solomon error correction)
-
-5. Furuhashi, S. (2023). *MessagePack: Efficient Binary Serialization*. https://msgpack.org/ (Binary serialization format)
-
-6. Blossom, E. (2004). "GNU Radio: Tools for exploring the radio frequency spectrum." *Linux Journal*, 2004(122), 4. (Software defined radio framework)
-
-7. O'Shea, T., & Hoydis, J. (2017). "An introduction to deep learning for the physical layer." *IEEE Transactions on Cognitive Communications and Networking*, 3(4), 563-575. (Neural network modulation/demodulation)
