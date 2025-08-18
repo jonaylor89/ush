@@ -61,5 +61,11 @@ rand = "0.8"
 # Audio analysis for spectral masking
 spectrum-analyzer = "1.0"
 
+# Visualization for debug mode
+plotters = "0.3"
+image = "0.24"
+colorgrad = "0.6"
+chrono = "0.4"
+
 [dev-dependencies]
 approx = "0.5"

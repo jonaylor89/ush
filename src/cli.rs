@@ -72,6 +72,12 @@ pub enum Commands {
 
         #[arg(long, help = "Signal detection threshold (0.0-1.0, default: 0.1)")]
         threshold: Option<f32>,
+
+        #[arg(long, help = "Enable debug mode with audio analysis")]
+        debug: bool,
+
+        #[arg(long, help = "Output directory for debug analysis files")]
+        debug_output: Option<PathBuf>,
     },
 
     #[command(about = "Start interactive chat mode")]

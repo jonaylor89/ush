@@ -77,6 +77,14 @@ noise:
 devices:
     cargo run --release -- test devices
 
+# Listen with debug analysis enabled
+debug-listen TIMEOUT:
+    cargo run --release -- listen --timeout {{TIMEOUT}} --debug --debug-output ./debug_analysis
+
+# Debug analysis of a specific WAV file
+debug-wav FILE:
+    cargo run --release -- listen --from-wav {{FILE}} --debug --debug-output ./debug_analysis
+
 # Run all quality checks (format, lint, test)
 check-all: test
     cargo fmt
@@ -163,3 +171,63 @@ dev: test
 # Quick smoke test
 smoke-test:
     cargo run --release -- test loopback "Smoke test"
+
+# Clean debug output directory
+clean-debug:
+    rm -rf debug_analysis
+
+# Run debug analysis on loopback test
+debug-loopback MESSAGE:
+    @echo "🔍 Running debug loopback test with analysis"
+    cargo run --release -- send "{{MESSAGE}}" --save-wav /tmp/ush-debug-test.wav
+    cargo run --release -- listen --from-wav /tmp/ush-debug-test.wav --debug --debug-output ./debug_analysis
+    @rm -f /tmp/ush-debug-test.wav
+    @echo "Debug analysis saved to: debug_analysis/"
+
+# Comprehensive debug demonstration
+debug-demo:
+    @echo "🎵 USH Debug Mode Demonstration"
+    @echo "==============================="
+
+    @echo "\n🧹 Cleaning previous debug output..."
+    just clean-debug
+
+    @echo "\n📊 1. Short message analysis..."
+    just debug-loopback "Short"
+
+    @echo "\n📈 2. Medium message analysis..."
+    just debug-loopback "This is a medium-length test message for debug analysis."
+
+    @echo "\n🌍 3. Unicode message analysis..."
+    just debug-loopback "Hello 世界 🔊 Ultrasonic!"
+
+    @echo "\n🔬 4. Technical message analysis..."
+    just debug-loopback "FSK modulation at 18kHz and 20kHz frequencies with 44.1kHz sampling rate."
+
+    @echo "\n📁 Generated debug sessions:"
+    @ls -la debug_analysis/
+
+    @echo "\n🎯 Debug Demo Summary:"
+    @echo "✅ Multiple test messages analyzed"
+    @echo "✅ Spectrograms generated showing FSK signals"
+    @echo "✅ FFT analysis plots created"
+    @echo "✅ Signal quality metrics calculated"
+    @echo "✅ Interactive HTML reports generated"
+    @echo "\n📖 Open any debug_analysis/session_*/debug_report.html in your browser"
+    @echo "🔍 Examine the spectrograms to see FSK frequency patterns"
+    @echo "📊 Review signal quality metrics and SNR measurements"
+
+# Test debug mode with different message lengths
+debug-scaling:
+    @echo "🔢 Testing debug analysis with various message lengths"
+    just clean-debug
+    just debug-loopback "Hi"
+    just debug-loopback "Hello, this is a longer message to test scaling."
+    just debug-loopback "This is an even longer message designed to test how the debug analysis system handles larger amounts of data and longer transmission times in the ultrasonic communication system."
+    @echo "\n📏 Message length scaling analysis complete!"
+
+# Generate debug analysis for noise testing
+debug-noise:
+    @echo "🔇 Capturing background noise for analysis..."
+    cargo run --release -- listen --timeout 10 --debug --debug-output ./debug_analysis
+    @echo "🔍 Noise analysis complete! Check latest session for noise characteristics."

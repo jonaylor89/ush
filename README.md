@@ -120,6 +120,31 @@ Measure background noise:
 ush test noise --duration 5
 ```
 
+### Debug Mode and Analysis
+
+Audio analysis with spectrograms and FFT visualizations:
+
+```bash
+# Debug analysis of live audio capture
+ush listen --timeout 30 --debug --debug-output ./debug_analysis
+
+# Debug analysis of existing WAV file
+ush listen --from-wav recording.wav --debug --debug-output ./analysis
+
+# Quick debug loopback test
+just debug-loopback "Test message"
+
+# Comprehensive debug demonstration
+just debug-demo
+```
+
+Debug mode generates:
+- **Spectrograms**: Time-frequency heatmaps showing FSK signal patterns
+- **FFT Analysis**: Frequency domain plots with signal quality metrics
+- **Signal Metrics**: SNR estimation, dynamic range, frequency presence
+- **HTML Reports**: Interactive analysis with interpretation guides
+- **Raw Audio**: Complete recordings for external analysis
+
 ### Advanced Options
 
 Use custom frequencies:

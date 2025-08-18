@@ -9,6 +9,7 @@ use std::collections::VecDeque;
 use std::fs::File;
 use std::io::{self, BufReader, Read};
 use std::path::Path;
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::mpsc;
@@ -17,6 +18,7 @@ use tokio::time::sleep;
 use cpal::traits::StreamTrait;
 use ush::audio::{AudioConfig, AudioManager};
 use ush::cli::{AudioSettings, TestCommands};
+use ush::debug::{DebugAnalyzer, DebugAudioBuffer, DebugConfig};
 use ush::modulation::{
     FskDemodulator, FskModulator, ModulationConfig, apply_bandpass_filter, detect_signal_start,
 };
@@ -120,16 +122,27 @@ impl UshApp {
         from_wav: Option<&Path>,
         filter: bool,
         threshold: f32,
+        debug: bool,
+        debug_output: Option<&Path>,
     ) -> UshResult<()> {
         if let Some(wav_path) = from_wav {
             info!("Processing audio from WAV file: {:?}", wav_path);
             let samples = self.load_wav_file(wav_path)?;
+
+            // If debug mode is enabled, analyze the WAV file
+            if debug {
+                self.run_debug_analysis(&samples, debug_output).await?;
+            }
+
             return self
                 .process_received_samples(&samples, filter, threshold)
                 .await;
         }
 
         info!("Listening for messages (threshold: {:.2})...", threshold);
+        if debug {
+            info!("Debug mode enabled - will capture and analyze all audio");
+        }
         if let Some(timeout) = timeout_secs {
             info!("Timeout set to {} seconds", timeout);
         }
@@ -137,11 +150,37 @@ impl UshApp {
         let recorded_samples = Arc::new(Mutex::new(Vec::<f32>::new()));
         let samples_clone = recorded_samples.clone();
 
+        // Create debug buffer if debug mode is enabled
+        let debug_buffer = if debug {
+            let max_duration = timeout_secs.unwrap_or(60) as f32 + 10.0; // Add buffer
+            Some(DebugAudioBuffer::new(
+                max_duration,
+                self.settings.sample_rate,
+            ))
+        } else {
+            None
+        };
+
+        let debug_buffer_clone = debug_buffer.as_ref().map(|db| db.get_buffer_clone());
+
         let (_tx, _rx) = mpsc::unbounded_channel::<()>();
 
         let input_stream = self.audio_manager.create_input_stream(move |data| {
             let mut samples = samples_clone.lock().unwrap();
             samples.extend_from_slice(data);
+
+            // Add to debug buffer if debug mode is enabled
+            if let Some(ref debug_buf) = debug_buffer_clone {
+                if let Ok(mut debug_samples) = debug_buf.try_lock() {
+                    debug_samples.extend(data.iter());
+
+                    // Limit debug buffer size
+                    let max_samples = 44100 * 120; // 2 minutes max
+                    while debug_samples.len() > max_samples {
+                        debug_samples.pop_front();
+                    }
+                }
+            }
 
             // Process in chunks to avoid memory issues
             if samples.len() > 44100 * 10 {
@@ -210,6 +249,19 @@ impl UshApp {
 
         drop(input_stream);
 
+        // Run debug analysis if enabled
+        if debug {
+            if let Some(debug_buf) = debug_buffer {
+                let all_samples = debug_buf.get_all_samples();
+                if !all_samples.is_empty() {
+                    info!("Running debug analysis on {} samples", all_samples.len());
+                    self.run_debug_analysis(&all_samples, debug_output).await?;
+                } else {
+                    warn!("No audio data captured for debug analysis");
+                }
+            }
+        }
+
         if let Some(wav_path) = save_wav {
             let samples = recorded_samples.lock().unwrap();
             if !samples.is_empty() {
@@ -217,6 +269,51 @@ impl UshApp {
                 info!("Saved recorded audio to: {:?}", wav_path);
             }
         }
+
+        Ok(())
+    }
+
+    /// Run debug analysis on audio samples
+    async fn run_debug_analysis(
+        &self,
+        samples: &[f32],
+        debug_output: Option<&Path>,
+    ) -> UshResult<()> {
+        let output_dir = debug_output
+            .map(|p| p.to_path_buf())
+            .unwrap_or_else(|| PathBuf::from("debug_analysis"));
+
+        let debug_config = DebugConfig {
+            sample_rate: self.settings.sample_rate,
+            freq_0: self.settings.freq_0,
+            freq_1: self.settings.freq_1,
+            output_dir,
+            window_size: 1024,
+            hop_size: 256,
+            fft_size: 512,
+        };
+
+        let mut analyzer = DebugAnalyzer::new(debug_config)?;
+        let analysis_result = analyzer.analyze_audio(samples)?;
+
+        info!("Debug analysis complete!");
+        info!("Session ID: {}", analysis_result.session_id);
+        info!(
+            "Duration analyzed: {:.2}s",
+            analysis_result.signal_metrics.duration_seconds
+        );
+        info!(
+            "Estimated SNR: {:.1} dB",
+            analysis_result.signal_metrics.estimated_snr
+        );
+        info!(
+            "freq_0 presence: {:.1}%",
+            analysis_result.signal_metrics.freq_0_presence * 100.0
+        );
+        info!(
+            "freq_1 presence: {:.1}%",
+            analysis_result.signal_metrics.freq_1_presence * 100.0
+        );
 
         Ok(())
     }

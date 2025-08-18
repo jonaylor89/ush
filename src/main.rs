@@ -60,6 +60,8 @@ async fn main() -> UshResult<()> {
             from_wav,
             filter,
             threshold,
+            debug,
+            debug_output,
         } => {
             let app = UshApp::new(settings)?;
             let threshold = threshold
@@ -73,6 +75,8 @@ async fn main() -> UshResult<()> {
                 from_wav.as_deref(),
                 *filter,
                 threshold,
+                *debug,
+                debug_output.as_deref(),
             )
             .await
         }
