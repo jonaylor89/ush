@@ -1,6 +1,6 @@
+use ush::UshResult;
 use ush::modulation::{FskDemodulator, FskModulator, ModulationConfig};
 use ush::protocol::{ProtocolDecoder, ProtocolEncoder};
-use ush::UshResult;
 
 #[tokio::test]
 async fn test_full_pipeline() -> UshResult<()> {
@@ -137,8 +137,8 @@ async fn test_different_message_lengths() -> UshResult<()> {
     let mut decoder = ProtocolDecoder::new();
 
     let test_messages = vec![
-        "A", // Very short
-        "Hello", // Short
+        "A",                                                     // Very short
+        "Hello",                                                 // Short
         "This is a medium-length message for testing purposes.", // Medium
         "This is a very long message that contains many words and should test the system's ability to handle longer text transmissions. It includes various characters like numbers 123456789 and symbols !@#$%^&*()_+-=[]{}|;:,.<>? to ensure comprehensive testing coverage.", // Long
     ];

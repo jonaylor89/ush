@@ -17,10 +17,6 @@ build-release:
 test:
     cargo test
 
-# Run tests with output visible
-test-verbose:
-    cargo test -- --nocapture
-
 # Run only integration tests
 test-integration:
     cargo test --test integration_tests
@@ -33,21 +29,9 @@ test-single TEST:
 test-bench:
     cargo test --release test_performance_benchmarks -- --nocapture
 
-# Format code using rustfmt
-fmt:
-    cargo fmt
-
 # Run clippy for linting
 lint:
     cargo clippy -- -D warnings
-
-# Check code without building
-check:
-    cargo check
-
-# Clean build artifacts
-clean:
-    cargo clean
 
 # Install the binary locally
 install:
@@ -56,10 +40,6 @@ install:
 # Uninstall the binary
 uninstall:
     cargo uninstall ush
-
-# Generate and open documentation
-docs:
-    cargo doc --open
 
 # Run with debug logging
 run-debug *ARGS:
@@ -98,7 +78,9 @@ devices:
     cargo run --release -- test devices
 
 # Run all quality checks (format, lint, test)
-check-all: fmt lint test
+check-all: test
+    cargo fmt
+    cargo clippy -- -D warnings
 
 # Build for all supported platforms
 build-all: build-linux build-mac build-windows
@@ -168,11 +150,14 @@ test-communication:
     @rm -f /tmp/ush-test.wav
 
 # Full CI/CD pipeline simulation
-ci: fmt lint test build-release
+ci: test build-release
+    cargo fmt
+    cargo clippy -- -D warnings
     @echo "✅ All CI checks passed!"
 
 # Development workflow helper
-dev: check test
+dev: test
+    cargo check
     @echo "✅ Development checks passed!"
 
 # Quick smoke test

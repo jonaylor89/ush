@@ -1,3 +1,4 @@
+use cpal::traits::{DeviceTrait, HostTrait};
 use crossterm::{
     event::{self, Event, KeyCode, KeyEventKind},
     execute,
@@ -484,8 +485,119 @@ impl UshApp {
     }
 
     async fn list_audio_devices(&self) -> UshResult<()> {
-        println!("Audio Devices:");
-        println!("This feature requires additional implementation for device enumeration.");
+        let host = self.audio_manager.get_host();
+
+        println!("Audio Host: {}", host.id().name());
+        println!("{}", "=".repeat(50));
+
+        // List input devices
+        println!("\nINPUT DEVICES:");
+        println!("{}", "-".repeat(30));
+
+        match host.input_devices() {
+            Ok(devices) => {
+                let mut device_count = 0;
+                for (i, device) in devices.enumerate() {
+                    device_count += 1;
+                    println!(
+                        "\nDevice {}: {}",
+                        i,
+                        device.name().unwrap_or("Unknown".to_string())
+                    );
+
+                    // Show supported input configurations
+                    match device.supported_input_configs() {
+                        Ok(configs) => {
+                            for (j, config) in configs.enumerate() {
+                                println!(
+                                    "  Config {}: {} channels, {}-{} Hz, {:?}",
+                                    j,
+                                    config.channels(),
+                                    config.min_sample_rate().0,
+                                    config.max_sample_rate().0,
+                                    config.sample_format()
+                                );
+                            }
+                        }
+                        Err(e) => println!("  Error getting configs: {}", e),
+                    }
+                }
+                if device_count == 0 {
+                    println!("No input devices found");
+                }
+            }
+            Err(e) => println!("Error listing input devices: {}", e),
+        }
+
+        // List output devices
+        println!("\nOUTPUT DEVICES:");
+        println!("{}", "-".repeat(30));
+
+        match host.output_devices() {
+            Ok(devices) => {
+                let mut device_count = 0;
+                for (i, device) in devices.enumerate() {
+                    device_count += 1;
+                    println!(
+                        "\nDevice {}: {}",
+                        i,
+                        device.name().unwrap_or("Unknown".to_string())
+                    );
+
+                    // Show supported output configurations
+                    match device.supported_output_configs() {
+                        Ok(configs) => {
+                            for (j, config) in configs.enumerate() {
+                                println!(
+                                    "  Config {}: {} channels, {}-{} Hz, {:?}",
+                                    j,
+                                    config.channels(),
+                                    config.min_sample_rate().0,
+                                    config.max_sample_rate().0,
+                                    config.sample_format()
+                                );
+                            }
+                        }
+                        Err(e) => println!("  Error getting configs: {}", e),
+                    }
+                }
+                if device_count == 0 {
+                    println!("No output devices found");
+                }
+            }
+            Err(e) => println!("Error listing output devices: {}", e),
+        }
+
+        // Check default devices specifically
+        println!("\nDEFAULT DEVICES:");
+        println!("{}", "-".repeat(30));
+
+        if let Some(device) = host.default_input_device() {
+            println!(
+                "Default input: {}",
+                device.name().unwrap_or("Unknown".to_string())
+            );
+        } else {
+            println!("No default input device found!");
+        }
+
+        if let Some(device) = host.default_output_device() {
+            println!(
+                "Default output: {}",
+                device.name().unwrap_or("Unknown".to_string())
+            );
+        } else {
+            println!("No default output device found!");
+        }
+
+        // Show current audio configuration
+        println!("\nCURRENT AUDIO CONFIG:");
+        println!("{}", "-".repeat(30));
+        let config = self.audio_manager.get_config();
+        println!("Sample rate: {} Hz", config.sample_rate);
+        println!("Channels: {}", config.channels);
+        println!("Buffer size: {} samples", config.buffer_size);
+
         Ok(())
     }
 
